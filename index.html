@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style>
+            #error {
+                color: red;
+                font-size: 14px;
+                margin: 8px 0px;
+            }
+            .preview {
+                background: #f4f4f4;
+                border: 1px solid #ddd;
+                border-left: 3px solid #f36d33;
+                color: #666;
+                page-break-inside: avoid;
+                font-family: monospace;
+                font-size: 14px;
+                line-height: 1.6;
+                margin-bottom: 1.6em;
+                max-width: 50%;
+                overflow: auto;
+                padding: 1em 1.5em;
+                display: block;
+                word-wrap: break-word;
+            }
+        </style>
+    </head>
+    <body>
+        <input
+            type="file"
+            accept="text/plain"
+            onchange="handleAction(event)"
+        /><br />
+        <pre id="input-text"></pre>
+        <div id="error"></div>
+    </body>
+    <script>
+        function readFile(event) {
+            return new Promise((resolve, reject) => {
+                let input = event.target;
+                let reader = new FileReader();
+
+                reader.onload = function () {
+                    const text = reader.result;
+
+                    const node = document.getElementById("input-text");
+                    node.classList.add("preview");
+                    node.innerText = text.trim();
+
+                    resolve(text);
+                };
+                reader.onerror = function () {
+                    window.alert("Some things wrong! Please try again!");
+                    reject();
+                };
+
+                reader.readAsText(input.files[0]);
+            });
+        }
+
+        function writeFile(filename, data) {
+            const blob = new Blob([data], { type: "text/plain" });
+            if (window.navigator.msSaveOrOpenBlob) {
+                window.navigator.msSaveBlob(blob, filename);
+            } else {
+                const elem = window.document.createElement("a");
+                elem.href = window.URL.createObjectURL(blob);
+                elem.download = filename;
+                document.body.appendChild(elem);
+                elem.click();
+                document.body.removeChild(elem);
+            }
+        }
+
+        async function getInitValues(event) {
+            const errorMessage = document.getElementById("error");
+
+            const result = await readFile(event);
+            let array = result.trim().split("\n");
+
+            if (!array.length || array.length <= 4) {
+                errorMessage.innerText = "File is invalid! Please try again!";
+                return;
+            }
+
+            // calculator and validate m,n
+            const m = Number(array[0].split(" ")[0]);
+            const n = Number(array[0].split(" ")[1]);
+
+            if (m < 0 || m > 1000) {
+                errorMessage.innerText =
+                    "File is invalid! M must be less than or equal to 1000 or greater than 0";
+                return;
+            }
+
+            if (n < 0 || n > 1000) {
+                errorMessage.innerText =
+                    "File is invalid! N must be less than or equal to 1000 or greater than 0";
+                return;
+            }
+
+            // get data matrix
+            let matrix = [];
+
+            for (let row = 0; row < m; row++) {
+                let rowData = array[row + 1].split(" ");
+                matrix[row] = [];
+                for (let col = 0; col < n; col++) {
+                    matrix[row][col] = Number(rowData[col]);
+                }
+            }
+
+            // calculator and validate x, y
+            const x = Number(array[m + 1].split(" ")[0]);
+            const y = Number(array[m + 1].split(" ")[1]);
+
+            if (x < 0 || x >= m) {
+                errorMessage.innerText =
+                    "File is invalid! X must be less than M and greater than or equal to 0";
+                return;
+            }
+
+            if (y < 0 || y >= n) {
+                errorMessage.innerText =
+                    "File is invalid! Y must be less than N and greater than or equal to 0";
+                return;
+            }
+
+            // calculator and validate commands
+            const commands = array[array.length - 1];
+
+            if (commands.length > 10 ** 6) {
+                errorMessage.innerText =
+                    "File is invalid! Commands must be less than or equal to 10^6";
+                return;
+            }
+
+            return { m, n, matrix, x, y, commands };
+        }
+
+        function move(direction, m, n, x, y) {
+            switch (direction) {
+                case "U":
+                    if (x - 1 >= 0) {
+                        return {
+                            x: x - 1,
+                            y: y,
+                        };
+                    }
+                    break;
+                case "D":
+                    if (x + 1 < m) {
+                        return {
+                            x: x + 1,
+                            y: y,
+                        };
+                    }
+                    break;
+                case "L":
+                    if (y - 1 >= 0) {
+                        return {
+                            x: x,
+                            y: y - 1,
+                        };
+                    }
+                    break;
+                case "R":
+                    if (y + 1 < n) {
+                        return {
+                            x: x,
+                            y: y + 1,
+                        };
+                    }
+                    break;
+                default:
+                    return {};
+            }
+            return {};
+        }
+
+        const handleAction = async function (event) {
+            const errorMessage = document.getElementById("error");
+            errorMessage.innerHTML = "";
+
+            const { m, n, matrix, x, y, commands } = await getInitValues(event);
+
+            let xCurrent = Number(x);
+            let yCurrent = Number(y);
+
+            let sum = matrix[xCurrent][yCurrent];
+            matrix[xCurrent][yCurrent] = 0;
+
+            for (let i = 0; i < commands.length; i++) {
+                let newPosition = move(commands[i], m, n, xCurrent, yCurrent);
+
+                if (Object.keys(newPosition).length === 0) {
+                    sum = 0;
+                    break;
+                }
+                let { x: xNew, y: yNew } = newPosition;
+
+                sum += Number(matrix[xNew][yNew]);
+                matrix[xNew][yNew] = 0;
+                xCurrent = xNew;
+                yCurrent = yNew;
+            }
+
+            writeFile("output", sum);
+        };
+    </script>
+</html>
